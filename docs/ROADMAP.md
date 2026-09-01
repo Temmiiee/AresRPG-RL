@@ -74,7 +74,13 @@ MaskablePPO policy without error.
       single file — `tools/dashboard.py` merges all workers' CSVs automatically)
 - [ ] curriculum
 - [ ] hard-fight replay
-- [ ] held-out benchmarks
+- [x] held-out benchmarks — `tools/evaluate.py --model <ckpt> --episodes N` runs a
+      deterministic policy against a scenario-generator seed disjoint from training
+      (default `999_999`, far from `rl.train`'s default `12345`), reporting win rate with
+      a Wilson 95% CI (not a raw fraction), average rounds/deaths/HP remaining, and
+      invalid-action rate — overall and broken down by an enemy/team level-ratio bucket
+      (easy/medium/hard), derived from each episode's actual fighters, no scenario
+      metadata plumbing needed
 - [ ] checkpoint management — `python -m rl.train --resume <ckpt.zip>` now continues
       training an existing checkpoint; no versioning/auto-resume-latest yet
 - [x] TensorBoard/W&B optional logging — `rl/train.py` degrades to no logging instead of

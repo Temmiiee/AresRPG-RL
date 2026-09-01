@@ -30,10 +30,10 @@ pack, not placeholders); an exact legal-action space (movement, spell casts, wea
 strikes — all filtered through the engine's own legality checks, not "every board cell
 and hope"); a MaskablePPO training loop; a training dashboard.
 
-**Not built yet**: curriculum, hard-fight replay, held-out benchmarks, composition
-research, the exact solver, and any UI. Character stat allocation is a simplified
-approximation, not the real per-class leveling system — see `docs/ROADMAP.md` for
-exactly what's checked off (Phase 1, making the simulator interface exact, is complete).
+**Not built yet**: curriculum, hard-fight replay, composition research, the exact
+solver, and any UI. Character stat allocation is a simplified approximation, not the
+real per-class leveling system — see `docs/ROADMAP.md` for exactly what's checked off
+(Phase 1, making the simulator interface exact, is complete).
 
 ## Architecture
 
@@ -60,6 +60,7 @@ rl/                   bridge.py (subprocess wrapper), env.py (Gymnasium env), sc
 tools/
   build_content.py    pulls real classes/spells/mobs from an AresRPG checkout into data/
   dashboard.py        renders a training-stats HTML report from a Monitor CSV
+  evaluate.py         held-out benchmark: win rate + CI, deaths, HP left, by difficulty
   smoke_test.py       one-shot bridge ping
   benchmark.py        rough episodes/win-rate check
   solve_fight.py       stub — Phase 4, not implemented
@@ -118,6 +119,20 @@ python -m tools.dashboard --log runs/monitor --out runs/dashboard.html
 
 Opens as a static HTML file (no server, no external dependencies) — win rate, reward,
 episode length, and damage dealt/taken, each as a rolling average over training.
+
+### Check it's actually generalizing
+
+Training win rate isn't a benchmark — a model can look good by exploiting quirks of the
+scenarios it trained on. Evaluate against a held-out scenario seed instead:
+
+```bash
+python -m tools.evaluate --model models/ppo_ares.zip --episodes 200
+```
+
+Win rate with a 95% confidence interval, average rounds/deaths/HP remaining, and
+invalid-action rate — overall and broken down by enemy-vs-team difficulty. Defaults to
+seed `999_999`, deliberately far from `rl.train`'s default (`12345`); if you trained with
+a custom `--seed`, evaluate with a different one.
 
 ## Contributing
 
