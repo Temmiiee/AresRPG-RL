@@ -1,0 +1,12 @@
+{
+  "classes": [
+    {"id":"senshi","role":"frontline"},
+    {"id":"healer","role":"support"},
+    {"id":"ranged","role":"damage"},
+    {"id":"control","role":"control"}
+  ],
+  "mob_templates": [
+    {"id":"wabbit","hp":100,"ap":6,"mp":3,"agility":20,"wisdom":20,
+     "earth_res":32768,"fire_res":32768,"water_res":32768,"air_res":32768,"xp":50}
+  ]
+}
