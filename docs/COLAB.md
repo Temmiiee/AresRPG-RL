@@ -58,7 +58,7 @@ you don't need to repeat it per cell.
 ```
 
 Expect `{'ok': True}`. If this fails, re-run step 3 and double check step 4 ran in the
-*same* notebook (variables don't survive a Colab disconnect — see step 7).
+*same* notebook (variables don't survive a Colab disconnect — see step 8).
 
 ## 6. Train
 
@@ -72,17 +72,22 @@ This should take well under a minute and print PPO's rollout stats (`ep_rew_mean
 `ep_len_mean`) a few times. Once that looks sane, scale up:
 
 ```bash
-!python -m rl.train --steps 200000 --out models/ppo_ares --log runs/monitor.csv
+!python -m rl.train --steps 200000 --workers 2 --out models/ppo_ares --log runs/monitor
 ```
 
-`--out` is where the model checkpoint (`.zip`) is saved. `--log` is a CSV of
-per-episode stats (win/loss, damage dealt/taken, episode length...) that the dashboard
-below reads — keep it if you want to see training progress.
+`--workers N` runs N simulator processes in parallel (each its own Bun subprocess) —
+real throughput gain, though not linear in N. Colab's free CPU runtime typically has 2
+vCPUs, so start at `--workers 2`; check `nproc` in a `!` cell if you want to know exactly
+how many you have, and don't go far past that number (more workers than cores just adds
+contention, not speed). `--out` is where the model checkpoint (`.zip`) is saved. `--log`
+is a directory of per-episode stats CSVs (win/loss, damage dealt/taken, episode
+length... one file per worker) that the dashboard below reads — keep it if you want to
+see training progress.
 
 ## 7. View the training dashboard
 
 ```bash
-!python -m tools.dashboard --log runs/monitor.csv --out runs/dashboard.html
+!python -m tools.dashboard --log runs/monitor --out runs/dashboard.html
 ```
 
 Then, in a Python cell, open it right inside the notebook:
@@ -109,19 +114,19 @@ drive.mount('/content/drive')
 ```
 
 ```bash
-!python -m rl.train --steps 200000 \
+!python -m rl.train --steps 200000 --workers 2 \
   --out /content/drive/MyDrive/aresrpg-ai/ppo_ares \
-  --log /content/drive/MyDrive/aresrpg-ai/monitor.csv
+  --log /content/drive/MyDrive/aresrpg-ai/monitor
 ```
 
 **Next session** (after a disconnect — repeat steps 1-5 first, since that state is gone
 too), continue instead of restarting from scratch:
 
 ```bash
-!python -m rl.train --steps 200000 \
+!python -m rl.train --steps 200000 --workers 2 \
   --resume /content/drive/MyDrive/aresrpg-ai/ppo_ares.zip \
   --out /content/drive/MyDrive/aresrpg-ai/ppo_ares \
-  --log /content/drive/MyDrive/aresrpg-ai/monitor.csv
+  --log /content/drive/MyDrive/aresrpg-ai/monitor
 ```
 
 `--resume` continues the model's training and appends to the same log (`--out` and
@@ -132,9 +137,10 @@ path any time to see the full history across all sessions, not just the current 
 
 ## Rough expectations
 
-At the throughput measured for this project (~130 env steps/sec on a single CPU
-process, no vectorization yet), 200k steps is well under an hour, but PPO on an action
-space this rich realistically needs low millions of steps before it looks competent —
-that's several sessions strung together via `--resume`. Watch the dashboard's win-rate
+At the throughput measured for this project (~90 env steps/sec on one CPU process,
+~200/sec with `--workers 4` on one machine — expect less on Colab's 2 vCPUs), 200k
+steps is well under an hour, but PPO on an action space this rich realistically needs
+low millions of steps before it looks competent — that's several sessions strung
+together via `--resume`. Watch the dashboard's win-rate
 chart trend upward over time; if it stays flat near 0% for a long stretch, something
 about the reward/observation setup likely needs attention before burning more compute.

@@ -30,11 +30,10 @@ pack, not placeholders); an exact legal-action space (movement, spell casts, wea
 strikes — all filtered through the engine's own legality checks, not "every board cell
 and hope"); a MaskablePPO training loop; a training dashboard.
 
-**Not built yet**: vectorized/parallel simulation (training is currently one Bun
-subprocess per environment, ~130 steps/sec), composition research, the exact solver, and
-any UI. Character stat allocation is a simplified approximation, not the real per-class
-leveling system — see `docs/ROADMAP.md` for exactly what's checked off (Phase 1, making
-the simulator interface exact, is now complete).
+**Not built yet**: curriculum, hard-fight replay, held-out benchmarks, composition
+research, the exact solver, and any UI. Character stat allocation is a simplified
+approximation, not the real per-class leveling system — see `docs/ROADMAP.md` for
+exactly what's checked off (Phase 1, making the simulator interface exact, is complete).
 
 ## Architecture
 
@@ -101,17 +100,21 @@ python tools/build_content.py --root "$ARES_RPG_ROOT"
 ### Train
 
 ```bash
-python -m rl.train --steps 200000 --out models/ppo_ares --log runs/monitor.csv
+python -m rl.train --steps 200000 --workers 4 --out models/ppo_ares --log runs/monitor
 ```
 
+`--workers N` runs N simulator processes in parallel, each its own Bun subprocess
+(measured ~2.3x throughput at 4 workers on one machine — not linear, but real).
 `--resume <checkpoint>.zip` continues training instead of starting over — see
 `docs/COLAB.md` for using this across disconnected free-tier sessions.
 
 ### See how it's doing
 
 ```bash
-python -m tools.dashboard --log runs/monitor.csv --out runs/dashboard.html
+python -m tools.dashboard --log runs/monitor --out runs/dashboard.html
 ```
+
+`--log` is a directory — one CSV per worker — that `tools.dashboard` merges automatically.
 
 Opens as a static HTML file (no server, no external dependencies) — win rate, reward,
 episode length, and damage dealt/taken, each as a rolling average over training.

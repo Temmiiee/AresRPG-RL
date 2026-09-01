@@ -66,7 +66,12 @@ completion (~130 steps/sec, 0 invalid actions) and `python -m rl.train` trains a
 MaskablePPO policy without error.
 
 ## Phase 2 — first serious RL
-- [ ] vectorized simulator workers
+- [x] vectorized simulator workers — `rl/train.py --workers N` runs N envs (each its
+      own Bun subprocess) in N OS processes via SB3's `SubprocVecEnv`; measured ~2.3x
+      throughput at 4 workers on a 1 machine (87 -> 200 env steps/sec), not linear
+      (CPU contention) but a real gain. Each worker gets a distinct scenario-generator
+      seed (`--seed`) and its own Monitor CSV under `--log` (a directory now, not a
+      single file — `tools/dashboard.py` merges all workers' CSVs automatically)
 - [ ] curriculum
 - [ ] hard-fight replay
 - [ ] held-out benchmarks

@@ -1,9 +1,11 @@
-"""Render a self-contained HTML report from a training run's Monitor CSV.
+"""Render a self-contained HTML report from a training run's Monitor CSV(s).
 
-python -m tools.dashboard --log runs/monitor.csv --out runs/dashboard.html
+python -m tools.dashboard --log runs/monitor --out runs/dashboard.html
 
-No dependencies beyond the standard library (no matplotlib, no internet access
-needed) so it works the same on a laptop or inside a Colab cell.
+--log is the directory rl.train --log writes to (one CSV per worker) — or a single
+CSV file, for a log from before --workers existed. No dependencies beyond the
+standard library (no matplotlib, no internet access needed) so it works the same
+on a laptop or inside a Colab cell.
 """
 import argparse
 import csv
@@ -11,12 +13,25 @@ from collections import deque
 from pathlib import Path
 
 
-def _load(path):
+def _load_file(path):
     with open(path, newline="", encoding="utf-8") as f:
         first = f.readline()
         if not first.startswith("#"):
             f.seek(0)
         return list(csv.DictReader(f))
+
+
+def _load(path):
+    # rl.train --workers > 1 writes one Monitor CSV per worker process (they can't
+    # share a file); merge them all here, in roughly chronological order across
+    # workers (each worker's own "t" is elapsed seconds since ITS start, but workers
+    # start together, so sorting the merge by t approximates a single timeline).
+    p = Path(path)
+    if p.is_dir():
+        rows = [row for file in sorted(p.glob("*.monitor.csv")) for row in _load_file(file)]
+        rows.sort(key=lambda r: float(r["t"]))
+        return rows
+    return _load_file(p)
 
 
 def _rolling_mean(values, window):
@@ -117,7 +132,8 @@ def build_html(rows, window):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--log", default="runs/monitor.csv", help="Monitor CSV written by rl.train (--log)")
+    p.add_argument("--log", default="runs/monitor",
+                   help="directory of per-worker Monitor CSVs from rl.train --log (or a single CSV file)")
     p.add_argument("--out", default="runs/dashboard.html")
     p.add_argument("--window", type=int, default=50, help="rolling-average window, in episodes")
     a = p.parse_args()
