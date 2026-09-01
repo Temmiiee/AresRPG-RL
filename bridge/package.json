@@ -1,1 +1,14 @@
-{"name":"aresrpg-rl-bridge","private":true,"type":"module"}
+{
+  "name": "aresrpg-rl-bridge",
+  "private": true,
+  "scripts": {
+    "start": "bun run server.ts",
+    "dev": "bun run server.ts"
+  },
+  "dependencies": {
+    "@aresrpg/fight": "latest"
+  },
+  "engines": {
+    "bun": "*"
+  }
+}
