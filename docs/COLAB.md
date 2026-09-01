@@ -1,66 +1,140 @@
-# Google Colab
+# Training on Google Colab (step by step)
 
-Colab is the recommended first remote environment because the whole project can be controlled from a phone.
+Google Colab is a free, hosted Jupyter notebook — a page of runnable code "cells" in
+your browser, backed by a real Linux machine you don't have to set up yourself. No local
+install, works from a Chromebook or a phone. This walks through it assuming you've never
+used it.
 
-## 1. Get the repository
+## 1. Open a notebook
 
-In a Colab cell:
+Go to [colab.research.google.com](https://colab.research.google.com), sign in with a
+Google account, and choose **New notebook**. You get one empty code cell. A cell runs
+with **Shift+Enter** (or the ▶ button on its left edge) — output appears directly below
+it. `!` at the start of a line runs a shell command instead of Python; that's used
+throughout below.
+
+You don't need a GPU runtime for this project — the fight simulator is CPU/IPC-bound
+(one Bun subprocess talking JSON over a pipe), so a GPU sits idle. The default runtime
+(**Runtime → Change runtime type → CPU**) is fine and avoids GPU queue waits.
+
+## 2. Clone the repository
+
+Paste into a cell and run it:
 
 ```bash
-!git clone https://github.com/YOUR_USERNAME/aresrpg-combat-ai.git
-%cd aresrpg-combat-ai
+!git clone https://github.com/Temmiie/AresRPG-RL.git
+%cd AresRPG-RL
 ```
 
-## 2. Run the bootstrap
+(`%cd`, with a percent sign, is a notebook "magic" command — it changes directory for
+every cell after it, unlike `!cd` which only affects that one line.)
+
+## 3. Run the bootstrap
 
 ```bash
 !bash notebooks/colab_setup.sh
 ```
 
-The script:
-- installs Python dependencies;
-- installs Bun;
-- adds Bun to PATH;
-- checks Bun;
-- clones/updates AresRPG if configured;
-- installs AresRPG dependencies.
+This installs the Python dependencies (`requirements.txt`), installs Bun, and clones the
+AresRPG engine repo itself to `/content/aresrpg` (a separate checkout — that's where the
+real fight simulator lives; this project only calls into it, never reimplements it).
+Takes a couple of minutes. Re-running it later in the same session is harmless.
 
-## 3. Set the AresRPG location
+## 4. Point at the AresRPG checkout
 
 ```python
 import os
 os.environ["ARES_RPG_ROOT"] = "/content/aresrpg"
 ```
 
-## 4. Smoke test
+Every following cell in this notebook session now has that environment variable set.
+Python cells and `!shell` cells in Colab share the same environment, so this is enough —
+you don't need to repeat it per cell.
+
+## 5. Smoke test
 
 ```bash
 !python tools/smoke_test.py
 ```
 
-Expected result is a JSON response with `ok: true`.
+Expect `{'ok': True}`. If this fails, re-run step 3 and double check step 4 ran in the
+*same* notebook (variables don't survive a Colab disconnect — see step 7).
 
-## 5. Train
+## 6. Train
+
+Start small to confirm everything works before committing real compute:
 
 ```bash
-!python -m rl.train --steps 100000
+!python -m rl.train --steps 5000
 ```
 
-Start small. Only move to millions of steps after the environment passes correctness tests.
+This should take well under a minute and print PPO's rollout stats (`ep_rew_mean`,
+`ep_len_mean`) a few times. Once that looks sane, scale up:
 
-## 6. Persist checkpoints
+```bash
+!python -m rl.train --steps 200000 --out models/ppo_ares --log runs/monitor.csv
+```
 
-Colab runtimes are temporary. Mount Google Drive if you want checkpoints to survive runtime resets.
+`--out` is where the model checkpoint (`.zip`) is saved. `--log` is a CSV of
+per-episode stats (win/loss, damage dealt/taken, episode length...) that the dashboard
+below reads — keep it if you want to see training progress.
 
-Example:
+## 7. View the training dashboard
+
+```bash
+!python -m tools.dashboard --log runs/monitor.csv --out runs/dashboard.html
+```
+
+Then, in a Python cell, open it right inside the notebook:
+
+```python
+from IPython.display import IFrame
+IFrame("runs/dashboard.html", width=900, height=700)
+```
+
+Or download it to view in a normal browser tab: click the folder icon in Colab's left
+sidebar, navigate to `runs/dashboard.html`, and use its ⋮ menu → **Download**. Re-run the
+`tools.dashboard` command any time during or after training to refresh it — it's cheap
+(pure Python, no plotting library, regenerates in well under a second).
+
+## 8. Persist checkpoints and logs across sessions
+
+Colab's free tier disconnects — a 12-hour hard cap, and idle timeouts well before that.
+Anything under `/content/` (the default working directory) disappears on disconnect.
+Mount Google Drive and write there instead:
 
 ```python
 from google.colab import drive
 drive.mount('/content/drive')
 ```
 
-Then use an output path under `/content/drive/MyDrive/aresrpg-ai/`.
+```bash
+!python -m rl.train --steps 200000 \
+  --out /content/drive/MyDrive/aresrpg-ai/ppo_ares \
+  --log /content/drive/MyDrive/aresrpg-ai/monitor.csv
+```
 
-## Important
+**Next session** (after a disconnect — repeat steps 1-5 first, since that state is gone
+too), continue instead of restarting from scratch:
 
-A GPU does not automatically make the whole pipeline faster. The fight simulator is CPU-side. The scalable design should use multiple simulator workers and benchmark simulator steps/second before buying or selecting a large GPU.
+```bash
+!python -m rl.train --steps 200000 \
+  --resume /content/drive/MyDrive/aresrpg-ai/ppo_ares.zip \
+  --out /content/drive/MyDrive/aresrpg-ai/ppo_ares \
+  --log /content/drive/MyDrive/aresrpg-ai/monitor.csv
+```
+
+`--resume` continues the model's training and appends to the same log (`--out` and
+`--log` point at the same paths so both keep accumulating). Each `--steps` adds that many
+*more* timesteps on top of what's already trained. Repeat across sessions — that's how
+you accumulate real training time for free. Regenerate the dashboard from the Drive log
+path any time to see the full history across all sessions, not just the current one.
+
+## Rough expectations
+
+At the throughput measured for this project (~130 env steps/sec on a single CPU
+process, no vectorization yet), 200k steps is well under an hour, but PPO on an action
+space this rich realistically needs low millions of steps before it looks competent —
+that's several sessions strung together via `--resume`. Watch the dashboard's win-rate
+chart trend upward over time; if it stays flat near 0% for a long stretch, something
+about the reward/observation setup likely needs attention before burning more compute.

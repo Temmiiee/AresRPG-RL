@@ -20,9 +20,9 @@ if [ ! -d "/content/aresrpg" ]; then
 else
   git -C /content/aresrpg fetch --all
 fi
-
-cd /content/aresrpg
-bun install
+# No `bun install` needed here: bridge/server.ts imports @aresrpg/fight straight from
+# this checkout's source (it has zero runtime dependencies of its own), so the bridge
+# works without installing the rest of the (large, npm-dependent) AresRPG monorepo.
 
 echo
 echo "Setup complete."
