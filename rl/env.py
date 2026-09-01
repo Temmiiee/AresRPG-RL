@@ -75,4 +75,5 @@ class AresFightEnv(gym.Env):
                         kills=self._kills,deaths=self._deaths,rounds=self.state["round"])
         return self._obs(self.state),reward,done,truncated,info
     def action_masks(self): return self._mask()
+    def set_difficulty(self,d): self.gen.set_difficulty(d)
     def close(self): self.bridge.close()

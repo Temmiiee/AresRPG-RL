@@ -30,10 +30,10 @@ pack, not placeholders); an exact legal-action space (movement, spell casts, wea
 strikes — all filtered through the engine's own legality checks, not "every board cell
 and hope"); a MaskablePPO training loop; a training dashboard.
 
-**Not built yet**: curriculum, hard-fight replay, composition research, the exact
-solver, and any UI. Character stat allocation is a simplified approximation, not the
-real per-class leveling system — see `docs/ROADMAP.md` for exactly what's checked off
-(Phase 1, making the simulator interface exact, is complete).
+**Not built yet**: hard-fight replay, composition research, the exact solver, and any
+UI. Character stat allocation is a simplified approximation, not the real per-class
+leveling system — see `docs/ROADMAP.md` for exactly what's checked off (Phase 1, making
+the simulator interface exact, is complete).
 
 ## Architecture
 
@@ -56,7 +56,8 @@ Full detail, including why the bridge imports the engine directly instead of via
 bridge/server.ts     the only place that talks to @aresrpg/fight — one long-lived Bun
                       process per training env, JSON-per-line protocol
 rl/                   bridge.py (subprocess wrapper), env.py (Gymnasium env), scenarios.py
-                      (random fight generator), train.py (MaskablePPO)
+                      (random fight generator), train.py (MaskablePPO), curriculum.py
+                      (difficulty ramp-up callback)
 tools/
   build_content.py    pulls real classes/spells/mobs from an AresRPG checkout into data/
   dashboard.py        renders a training-stats HTML report from a Monitor CSV
@@ -105,9 +106,13 @@ python -m rl.train --steps 200000 --workers 4 --out models/ppo_ares --log runs/m
 ```
 
 `--workers N` runs N simulator processes in parallel, each its own Bun subprocess
-(measured ~2.3x throughput at 4 workers on one machine — not linear, but real).
-`--resume <checkpoint>.zip` continues training instead of starting over — see
-`docs/COLAB.md` for using this across disconnected free-tier sessions.
+(measured ~2.3x throughput at 4 workers on one machine — not linear, but real). Match N
+to your actual CPU core count (`nproc` on Linux, `os.cpu_count()` in Python) — more
+workers than cores just adds contention, not speed. `--resume <checkpoint>.zip`
+continues training instead of starting over — see `docs/COLAB.md` for using this across
+disconnected free-tier sessions. `--curriculum` starts scenarios easy (weaker enemies,
+usually solo) and ramps toward the real target distribution as win rate improves,
+instead of throwing the full difficulty at an untrained policy from step 0.
 
 ### See how it's doing
 

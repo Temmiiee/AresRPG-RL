@@ -4,6 +4,7 @@ from sb3_contrib import MaskablePPO
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 from .env import AresFightEnv
+from .curriculum import CurriculumCallback
 
 INFO_KEYWORDS = ("win", "damage_dealt", "damage_taken", "kills", "deaths", "rounds")
 
@@ -28,6 +29,12 @@ def main():
     p.add_argument("--workers", type=int, default=1,
                    help="parallel simulator processes (each spawns its own Bun subprocess)")
     p.add_argument("--seed", type=int, default=12345, help="base scenario-generator seed; worker i uses seed+i")
+    p.add_argument("--curriculum", action="store_true",
+                   help="start easy and raise difficulty as win rate improves (see docs/DESIGN_NOTES.md)")
+    p.add_argument("--curriculum-start", type=float, default=0.2, help="initial difficulty, 0.0-1.0")
+    p.add_argument("--curriculum-step", type=float, default=0.2, help="difficulty increase per advancement")
+    p.add_argument("--curriculum-target", type=float, default=0.5, help="win rate that triggers an advancement")
+    p.add_argument("--curriculum-window", type=int, default=100, help="episodes averaged for the win-rate check")
     a = p.parse_args()
 
     if a.log:
@@ -44,7 +51,10 @@ def main():
         model = MaskablePPO("MlpPolicy", env, verbose=1, learning_rate=3e-4, n_steps=1024,
                             batch_size=256, gamma=.995, gae_lambda=.95, ent_coef=.01,
                             tensorboard_log=tb_log, device="auto")
-    model.learn(total_timesteps=a.steps, reset_num_timesteps=a.resume is None)
+    callback = CurriculumCallback(start=a.curriculum_start, step=a.curriculum_step,
+                                  target=a.curriculum_target, window=a.curriculum_window,
+                                  verbose=1) if a.curriculum else None
+    model.learn(total_timesteps=a.steps, reset_num_timesteps=a.resume is None, callback=callback)
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
     model.save(a.out)
     env.close()

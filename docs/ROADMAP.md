@@ -72,7 +72,13 @@ MaskablePPO policy without error.
       (CPU contention) but a real gain. Each worker gets a distinct scenario-generator
       seed (`--seed`) and its own Monitor CSV under `--log` (a directory now, not a
       single file — `tools/dashboard.py` merges all workers' CSVs automatically)
-- [ ] curriculum
+- [x] curriculum — `rl/train.py --curriculum` starts `ScenarioGenerator` at a lower
+      difficulty (weaker enemies, usually solo — see its `EASY_RATIO`/`TARGET_RATIO`)
+      and `rl/curriculum.py`'s `CurriculumCallback` raises it toward the real target
+      distribution whenever the last `--curriculum-window` episodes clear
+      `--curriculum-target` win rate. Difficulty lives on each worker's
+      `ScenarioGenerator`, not the saved model, so it resets on `--resume` unless you
+      pass `--curriculum-start` explicitly
 - [ ] hard-fight replay
 - [x] held-out benchmarks — `tools/evaluate.py --model <ckpt> --episodes N` runs a
       deterministic policy against a scenario-generator seed disjoint from training
